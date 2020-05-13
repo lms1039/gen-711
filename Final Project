@@ -1,0 +1,45 @@
+#launch instance 
+ssh -i $HOME/jetkey lisa6@149.165.156.106
+Mkdir stukenborg
+Cd stukenborg
+#download dataset
+curl -LO ftp://ftp.ensembl.org/pub/release-100/fasta/monodelphis_domestica/cdna/Monodelphis_domestica.ASM229v1.cdna.all.fa.gz
+curl -LO ftp://ftp.ensembl.org/pub/release-100/fasta/mesocricetus_auratus/cdna/Mesocricetus_a 
+curl -LO ftp://ftp.ensembl.org/pub/release-100/fasta/cavia_porcellus/cdna/Cavia_porcellus.Cavpor3.0.cdna.all.fa.gz uratus.MesAur1.0.cdna.all.fa.gz
+curl -LO ftp://ftp.ensembl.org/pub/release-100/fasta/tupaia_belangeri/cdna/Tupaia_belangeri.TREESHREW.cdna.all.fa.gz
+#decompress the files
+gzip -d Cavia_porcellus.Cavpor3.0.cdna.all.fa
+gzip -d Mesocricetus_auratus.MesAur1.0.cdna.all.fa
+gzip -d Monodelphis_domestica.ASM229v1.cdna.all.fa
+gzip -d Tupaia_belangeri.TREESHREW.cdna.all.fa
+#group the files together
+awk '{if(NR==1) {print $0} else {if($0 ~ /^>/) {print "\n"$0} else {printf $0}}}' Mesocricetus_auratus.MesAur1.0.cdna.all.fa > fixed_opossum.fasta
+awk '{if(NR==1) {print $0} else {if($0 ~ /^>/) {print "\n"$0} else {printf $0}}}' Cavia_porcellus.Cavpor3.0.cdna.all.fa Monodelphis_domestica.ASM229v1.cdna.all.fa Tupaia_belangeri.TREESHREW.cdna.all.fa > fixed_rodent.fa
+#install and activate conda
+sudo apt-get update
+sudo apt-get -y upgrade
+sudo apt-get -y install ruby build-essential python python-pip gdebi-core r-base git
+mkdir anaconda
+cd anaconda
+curl -LO https://repo.anaconda.com/archive/Anaconda3-5.1.0-Linux-x86_64.sh
+bash Anaconda3-5.1.0-Linux-x86_64.sh -b -p $HOME/anaconda/install/
+echo ". $HOME/anaconda/install/etc/profile.d/conda.sh" >> ~/.bashrc
+source ~/.bashrc
+conda update -n base conda
+conda create -y --name gen711
+conda activate gen711
+conda install -y -c bioconda spades quast
+conda install -y -c bioconda -c conda-forge busco=4.0.2
+cd
+#run blast
+makeblastdb -in fixed_opossum.fasta -out rodent -dbtype nucl
+blastn -db rodent -max_target_seqs 1 -query fixed_rodent.fa -outfmt '6 qseqid qlen length pident gaps evalue stitle' -evalue 1e-10 -num_threads 6 -out blast.out
+less blast.out
+#pull out gene of interest and move into a separate file
+grep -a sonic blast.out
+grep -A 1 ENSCPOT00000042273.1 > sonic_gene
+grep -A 1 ENSCPOT00000021574.2 >> sonic_gene
+grep -A 1 ENSMAUT00000021649.1 >> sonic_gene
+grep -A 1 ENSMAUT00000021649.1 >> sonic_gene
+#run mafft for a multiple sequence alignment
+mafft --reorder --localpair --thread 6 blast.out > sonic_gene
